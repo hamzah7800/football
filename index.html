@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Football Game with Improved Ball Precision</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+    #gameCanvas {
+      display: block;
+      background-color: green;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <script>
+    (function() {
+      const canvas = document.getElementById("gameCanvas");
+      const ctx = canvas.getContext("2d");
+
+      // Resize canvas to full screen.
+      function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+      window.addEventListener("resize", resizeCanvas);
+      resizeCanvas();
+
+      // Define players (bigger stick figures) with names.
+      // Blue player: "Hamzah", Red player: "Mubin"
+      let players = [
+        { 
+          x: canvas.width / 4, 
+          y: canvas.height / 2, 
+          size: 50,      
+          color: "blue", 
+          name: "Hamzah", 
+          speed: 3,
+          targetX: null,
+          targetY: null
+        },
+        { 
+          x: (3 * canvas.width) / 4, 
+          y: canvas.height / 2, 
+          size: 50, 
+          color: "red", 
+          name: "Mubin", 
+          speed: 3,
+          targetX: null,
+          targetY: null
+        }
+      ];
+      
+      // Define the soccer ball with a detailed pattern.
+      let ball = { 
+        x: canvas.width / 2, 
+        y: canvas.height / 2, 
+        size: 20, 
+        dx: 0, 
+        dy: 0, 
+        speed: 4 
+      };
+
+      let scores = { Hamzah: 0, Mubin: 0 };
+
+      // Keyboard event listeners.
+      let keys = {};
+      document.addEventListener("keydown", (e) => keys[e.key] = true);
+      document.addEventListener("keyup", (e) => keys[e.key] = false);
+
+      // Touch events for mobile multiplayer.
+      // Left half controls the left (blue/Hamzah) player.
+      // Right half controls the right (red/Mubin) player.
+      canvas.addEventListener("touchstart", handleTouch, false);
+      canvas.addEventListener("touchmove", handleTouch, false);
+      canvas.addEventListener("touchend", handleTouchEnd, false);
+
+      function handleTouch(e) {
+        e.preventDefault();
+        let leftTouches = [];
+        let rightTouches = [];
+        for (let i = 0; i < e.touches.length; i++) {
+          let t = e.touches[i];
+          if (t.clientX < canvas.width / 2) leftTouches.push(t);
+          else rightTouches.push(t);
+        }
+        if (leftTouches.length > 0) {
+          let avgX = leftTouches.reduce((sum, t) => sum + t.clientX, 0) / leftTouches.length;
+          let avgY = leftTouches.reduce((sum, t) => sum + t.clientY, 0) / leftTouches.length;
+          players[0].targetX = avgX;
+          players[0].targetY = avgY;
+        }
+        if (rightTouches.length > 0) {
+          let avgX = rightTouches.reduce((sum, t) => sum + t.clientX, 0) / rightTouches.length;
+          let avgY = rightTouches.reduce((sum, t) => sum + t.clientY, 0) / rightTouches.length;
+          players[1].targetX = avgX;
+          players[1].targetY = avgY;
+        }
+      }
+
+      function handleTouchEnd(e) {
+        e.preventDefault();
+        let leftTouches = [];
+        let rightTouches = [];
+        for (let i = 0; i < e.touches.length; i++) {
+          let t = e.touches[i];
+          if (t.clientX < canvas.width / 2) leftTouches.push(t);
+          else rightTouches.push(t);
+        }
+        if (leftTouches.length === 0) {
+          players[0].targetX = players[0].x;
+          players[0].targetY = players[0].y;
+        }
+        if (rightTouches.length === 0) {
+          players[1].targetX = players[1].x;
+          players[1].targetY = players[1].y;
+        }
+      }
+
+      // Smoothly move a player toward its touch target position.
+      function updatePlayerTarget(player) {
+        if (player.targetX !== null && player.targetY !== null) {
+          let dx = player.targetX - player.x;
+          let dy = player.targetY - player.y;
+          let distance = Math.sqrt(dx * dx + dy * dy);
+          if (distance > player.speed) {
+            player.x += (dx / distance) * player.speed;
+            player.y += (dy / distance) * player.speed;
+          } else {
+            player.x = player.targetX;
+            player.y = player.targetY;
+          }
+        }
+      }
+
+      // Update players using both keyboard and touch inputs.
+      function updatePlayers() {
+        // Keyboard for Player 1 (WASD controls).
+        if (keys["w"] && players[0].y - players[0].size > 0) players[0].y -= players[0].speed;
+        if (keys["s"] && players[0].y + players[0].size < canvas.height) players[0].y += players[0].speed;
+        if (keys["a"] && players[0].x - players[0].size > 0) players[0].x -= players[0].speed;
+        if (keys["d"] && players[0].x + players[0].size < canvas.width) players[0].x += players[0].speed;
+
+        // Keyboard for Player 2 (Arrow keys).
+        if (keys["ArrowUp"] && players[1].y - players[1].size > 0) players[1].y -= players[1].speed;
+        if (keys["ArrowDown"] && players[1].y + players[1].size < canvas.height) players[1].y += players[1].speed;
+        if (keys["ArrowLeft"] && players[1].x - players[1].size > 0) players[1].x -= players[1].speed;
+        if (keys["ArrowRight"] && players[1].x + players[1].size < canvas.width) players[1].x += players[1].speed;
+
+        // Update based on touch targets.
+        updatePlayerTarget(players[0]);
+        updatePlayerTarget(players[1]);
+      }
+
+      // Update the ball position with improved physics and collision handling.
+      function updateBall() {
+        ball.x += ball.dx;
+        ball.y += ball.dy;
+
+        // Bounce off left/right edges.
+        if (ball.x - ball.size <= 0) {
+          if (ball.y > canvas.height / 3 && ball.y < (2 * canvas.height) / 3) {
+            scores.Mubin++;
+            resetBall();
+            return;
+          } else {
+            ball.x = ball.size;
+            ball.dx *= -1;
+          }
+        } else if (ball.x + ball.size >= canvas.width) {
+          if (ball.y > canvas.height / 3 && ball.y < (2 * canvas.height) / 3) {
+            scores.Hamzah++;
+            resetBall();
+            return;
+          } else {
+            ball.x = canvas.width - ball.size;
+            ball.dx *= -1;
+          }
+        }
+
+        // Bounce off top/bottom.
+        if (ball.y - ball.size <= 0) {
+          ball.y = ball.size;
+          ball.dy *= -1;
+        } else if (ball.y + ball.size >= canvas.height) {
+          ball.y = canvas.height - ball.size;
+          ball.dy *= -1;
+        }
+
+        // Check collision with players using circular collision.
+        players.forEach(player => {
+          let dx = ball.x - player.x;
+          let dy = ball.y - player.y;
+          let distance = Math.sqrt(dx * dx + dy * dy);
+          let playerRadius = player.size * 0.3;
+          let minDist = ball.size + playerRadius;
+
+          if (distance < minDist) {
+            if (distance < 0.001) distance = 0.001;
+            // Nudge out of overlap
+            let overlap = (minDist - distance) * 0.5;
+            ball.x += (dx / distance) * overlap;
+            ball.y += (dy / distance) * overlap;
+
+            // Fixed-speed impulse on touch:
+            const normalX = dx / distance;
+            const normalY = dy / distance;
+            ball.dx = normalX * ball.speed;
+            ball.dy = normalY * ball.speed;
+          }
+        });
+
+        // Apply friction.
+        ball.dx *= 0.995;
+        ball.dy *= 0.995;
+
+        // Safety: reset if off-screen.
+        if (ball.x < -ball.size || ball.x > canvas.width + ball.size || 
+            ball.y < -ball.size || ball.y > canvas.height + ball.size) {
+          resetBall();
+        }
+      }
+
+      // Reset the ball to the center with zero velocity.
+      function resetBall() {
+        ball.x = canvas.width / 2;
+        ball.y = canvas.height / 2;
+        ball.dx = 0;
+        ball.dy = 0;
+      }
+
+      // Draw the field with goal zones.
+      function drawField() {
+        ctx.fillStyle = "green";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "white";
+        ctx.fillRect(10, canvas.height / 3, 20, canvas.height / 3);
+        ctx.fillRect(canvas.width - 30, canvas.height / 3, 20, canvas.height / 3);
+      }
+
+      // Helper: Draw a regular polygon (used for the soccer ball pattern).
+      function drawPolygon(cx, cy, radius, sides, rotation, fillStyle) {
+        ctx.beginPath();
+        for (let i = 0; i < sides; i++) {
+          let angle = rotation + (i * 2 * Math.PI / sides);
+          let x = cx + radius * Math.cos(angle);
+          let y = cy + radius * Math.sin(angle);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.fillStyle = fillStyle;
+        ctx.fill();
+      }
+
+      // Draw a detailed soccer ball with a gradient and pentagon pattern.
+      function drawSoccerBall(ball) {
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, ball.size, 0, Math.PI * 2);
+        let grad = ctx.createRadialGradient(ball.x, ball.y, ball.size * 0.2, ball.x, ball.y, ball.size);
+        grad.addColorStop(0, "#ffffff");
+        grad.addColorStop(1, "#cccccc");
+        ctx.fillStyle = grad;
+        ctx.fill();
+        ctx.closePath();
+
+        let pentRadius = ball.size * 0.3;
+        for (let i = 0; i < 5; i++) {
+          let angle = (i * 2 * Math.PI / 5) - Math.PI / 2;
+          let px = ball.x + Math.cos(angle) * (ball.size * 0.5);
+          let py = ball.y + Math.sin(angle) * (ball.size * 0.5);
+          drawPolygon(px, py, pentRadius, 5, Math.PI / 5, "black");
+        }
+      }
+
+      // Draw the players as larger stick figures.
+      function drawPlayers() {
+        players.forEach(player => {
+          let headRadius = player.size * 0.2;
+          let headCenterX = player.x;
+          let headCenterY = player.y - player.size * 0.4;
+          ctx.beginPath();
+          ctx.arc(headCenterX, headCenterY, headRadius, 0, Math.PI * 2);
+          ctx.fillStyle = player.color;
+          ctx.fill();
+          ctx.closePath();
+
+          let bodyStartY = headCenterY + headRadius;
+          let bodyEndY = player.y + player.size * 0.1;
+          ctx.beginPath();
+          ctx.moveTo(player.x, bodyStartY);
+          ctx.lineTo(player.x, bodyEndY);
+          ctx.strokeStyle = player.color;
+          ctx.lineWidth = 3;
+          ctx.stroke();
+          ctx.closePath();
+
+          ctx.beginPath();
+          ctx.moveTo(player.x, bodyStartY + (bodyEndY - bodyStartY) * 0.3);
+          ctx.lineTo(player.x - player.size * 0.2, bodyStartY + (bodyEndY - bodyStartY) * 0.5);
+          ctx.moveTo(player.x, bodyStartY + (bodyEndY - bodyStartY) * 0.3);
+          ctx.lineTo(player.x + player.size * 0.2, bodyStartY + (bodyEndY - bodyStartY) * 0.5);
+          ctx.strokeStyle = player.color;
+          ctx.lineWidth = 3;
+          ctx.stroke();
+          ctx.closePath();
+
+          ctx.beginPath();
+          ctx.moveTo(player.x, bodyEndY);
+          ctx.lineTo(player.x - player.size * 0.2, player.y + player.size * 0.5);
+          ctx.moveTo(player.x, bodyEndY);
+          ctx.lineTo(player.x + player.size * 0.2, player.y + player.size * 0.5);
+          ctx.strokeStyle = player.color;
+          ctx.lineWidth = 3;
+          ctx.stroke();
+          ctx.closePath();
+
+          ctx.fillStyle = "white";
+          ctx.font = "18px Arial";
+          ctx.textAlign = "center";
+          ctx.fillText(player.name, player.x, headCenterY - headRadius - 5);
+        });
+      }
+
+      // Draw the soccer ball.
+      function drawBall() {
+        drawSoccerBall(ball);
+      }
+
+      // Display the score.
+      function drawScore() {
+        ctx.fillStyle = "white";
+        ctx.font = "24px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(`${players[0].name}: ${scores[players[0].name]} - ${players[1].name}: ${scores[players[1].name]}`, canvas.width / 2, 40);
+      }
+
+      // Main game loop.
+      function gameLoop() {
+        drawField();
+        updatePlayers();
+        updateBall();
+        drawPlayers();
+        drawBall();
+        drawScore();
+        requestAnimationFrame(gameLoop);
+      }
+
+      gameLoop();
+    })();
+  </script>
+</body>
+</html>
