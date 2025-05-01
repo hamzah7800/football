@@ -1,82 +1,132 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Ultimate Football Game</title>
   <style>
-    body { margin: 0; overflow: hidden; }
-    #gameCanvas { display: block; background-color: #264d26; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+    }
+    #gameCanvas {
+      display: block;
+      background-color: #264d26;
+    }
+    #pauseOverlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      font-size: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      display: none;
+    }
+    #timer {
+      position: absolute;
+      top: 10px;
+      right: 20px;
+      color: white;
+      font-size: 24px;
+      z-index: 5;
+    }
   </style>
 </head>
 <body>
   <canvas id="gameCanvas"></canvas>
+  <div id="pauseOverlay">Paused</div>
+  <div id="timer">Time: 0</div>
+
   <script>
-    (function() {
+    (function () {
       const canvas = document.getElementById("gameCanvas");
       const ctx = canvas.getContext("2d");
+      const pauseOverlay = document.getElementById("pauseOverlay");
+      const timerDisplay = document.getElementById("timer");
 
-      function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+      function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
       window.addEventListener("resize", resizeCanvas);
       resizeCanvas();
 
-      const keeperColors = ['#FFD700','#00BFFF','#FF69B4','#ADFF2F'];
+      const keeperColors = ['#FFD700', '#00BFFF', '#FF69B4', '#ADFF2F'];
       const players = [
-        { x: canvas.width/4, y: canvas.height/2, size:50, color:'blue', name:'Hamzah', speed:3, targetX:null, targetY:null },
-        { x:3*canvas.width/4, y: canvas.height/2, size:50, color:'red', name:'Mubin', speed:3, targetX:null, targetY:null }
+        { x: canvas.width / 4, y: canvas.height / 2, size: 50, color: 'blue', name: 'Hamzah', speed: 3, targetX: null, targetY: null },
+        { x: 3 * canvas.width / 4, y: canvas.height / 2, size: 50, color: 'red', name: 'Mubin', speed: 3, targetX: null, targetY: null }
       ];
       const keepers = [
-        { x:40, y:canvas.height/2, size:40, colors:keeperColors, speed:1 },
-        { x:canvas.width-40, y:canvas.height/2, size:40, colors:keeperColors, speed:1 }
+        { x: 40, y: canvas.height / 2, size: 40, colors: keeperColors, speed: 1 },
+        { x: canvas.width - 40, y: canvas.height / 2, size: 40, colors: keeperColors, speed: 1 }
       ];
 
-      const ball = { x:canvas.width/2, y:canvas.height/2, size:20, dx:0, dy:0, speed:5 };
-      const scores = { Hamzah:0, Mubin:0 };
+      const ball = { x: canvas.width / 2, y: canvas.height / 2, size: 20, dx: 0, dy: 0, speed: 5 };
+      const scores = { Hamzah: 0, Mubin: 0 };
 
       const keys = {};
-      document.addEventListener('keydown', e=>keys[e.key]=true);
-      document.addEventListener('keyup', e=>keys[e.key]=false);
+      let paused = false;
+      let gameTime = 0;
+      let lastTime = Date.now();
+
+      document.addEventListener('keydown', e => {
+        keys[e.key] = true;
+        if (e.key === 'p' || e.key === 'P') {
+          paused = !paused;
+          pauseOverlay.style.display = paused ? 'flex' : 'none';
+        }
+      });
+      document.addEventListener('keyup', e => keys[e.key] = false);
       canvas.addEventListener('touchstart', handleTouch, false);
       canvas.addEventListener('touchmove', handleTouch, false);
       canvas.addEventListener('touchend', handleTouchEnd, false);
 
       function handleTouch(e) {
-        e.preventDefault(); let left=[], right=[];
-        for(const t of e.touches) {
-          if(t.clientX < canvas.width/2) left.push(t);
+        e.preventDefault();
+        let left = [], right = [];
+        for (const t of e.touches) {
+          if (t.clientX < canvas.width / 2) left.push(t);
           else right.push(t);
         }
-        if(left.length) {
-          const avgX = left.reduce((s,t)=>s+t.clientX,0)/left.length;
-          const avgY = left.reduce((s,t)=>s+t.clientY,0)/left.length;
-          players[0].targetX=avgX; players[0].targetY=avgY;
+        if (left.length) {
+          const avgX = left.reduce((s, t) => s + t.clientX, 0) / left.length;
+          const avgY = left.reduce((s, t) => s + t.clientY, 0) / left.length;
+          players[0].targetX = avgX; players[0].targetY = avgY;
         }
-        if(right.length) {
-          const avgX = right.reduce((s,t)=>s+t.clientX,0)/right.length;
-          const avgY = right.reduce((s,t)=>s+t.clientY,0)/right.length;
-          players[1].targetX=avgX; players[1].targetY=avgY;
+        if (right.length) {
+          const avgX = right.reduce((s, t) => s + t.clientX, 0) / right.length;
+          const avgY = right.reduce((s, t) => s + t.clientY, 0) / right.length;
+          players[1].targetX = avgX; players[1].targetY = avgY;
         }
       }
+
       function handleTouchEnd(e) {
-        e.preventDefault(); if(e.touches.length===0) players.forEach(p=>{p.targetX=p.x; p.targetY=p.y;});
+        e.preventDefault();
+        if (e.touches.length === 0) players.forEach(p => { p.targetX = null; p.targetY = null; });
       }
 
       function updatePlayers() {
-        if(keys.w) players[0].y -= players[0].speed;
-        if(keys.s) players[0].y += players[0].speed;
-        if(keys.a) players[0].x -= players[0].speed;
-        if(keys.d) players[0].x += players[0].speed;
-        if(keys.ArrowUp) players[1].y -= players[1].speed;
-        if(keys.ArrowDown) players[1].y += players[1].speed;
-        if(keys.ArrowLeft) players[1].x -= players[1].speed;
-        if(keys.ArrowRight) players[1].x += players[1].speed;
-        players.forEach(p=>{
-          if(p.targetX!=null) {
+        if (keys.w) players[0].y -= players[0].speed;
+        if (keys.s) players[0].y += players[0].speed;
+        if (keys.a) players[0].x -= players[0].speed;
+        if (keys.d) players[0].x += players[0].speed;
+        if (keys.ArrowUp) players[1].y -= players[1].speed;
+        if (keys.ArrowDown) players[1].y += players[1].speed;
+        if (keys.ArrowLeft) players[1].x -= players[1].speed;
+        if (keys.ArrowRight) players[1].x += players[1].speed;
+
+        players.forEach(p => {
+          if (p.targetX !== null && p.targetY !== null) {
             const dx = p.targetX - p.x;
             const dy = p.targetY - p.y;
-            const dist = Math.hypot(dx,dy);
-            if(dist > p.speed) {
-              p.x += dx/dist * p.speed;
-              p.y += dy/dist * p.speed;
+            const dist = Math.hypot(dx, dy);
+            if (dist > p.speed) {
+              p.x += dx / dist * p.speed;
+              p.y += dy / dist * p.speed;
             } else {
               p.x = p.targetX;
               p.y = p.targetY;
@@ -84,115 +134,139 @@
           }
         });
       }
+
       function updateKeepers() {
-        keepers.forEach(g=>{
+        keepers.forEach(g => {
           const dy = ball.y - g.y;
-          if(Math.abs(dy) > g.speed) g.y += Math.sign(dy) * g.speed;
+          if (Math.abs(dy) > g.speed) g.y += Math.sign(dy) * g.speed;
         });
       }
+
       function updateBall() {
-        ball.x += ball.dx; ball.y += ball.dy;
-        const top = canvas.height/3 - 20;
-        const bot = 2*canvas.height/3 + 20;
-        if(ball.x - ball.size <= 0) {
-          if(ball.y > top && ball.y < bot) { scores.Mubin++; resetBall(); return; }
+        ball.x += ball.dx;
+        ball.y += ball.dy;
+
+        const top = canvas.height / 3 - 20;
+        const bot = 2 * canvas.height / 3 + 20;
+
+        if (ball.x - ball.size <= 0) {
+          if (ball.y > top && ball.y < bot) { scores.Mubin++; resetBall(); return; }
           ball.x = ball.size; ball.dx *= -1;
         }
-        if(ball.x + ball.size >= canvas.width) {
-          if(ball.y > top && ball.y < bot) { scores.Hamzah++; resetBall(); return; }
+        if (ball.x + ball.size >= canvas.width) {
+          if (ball.y > top && ball.y < bot) { scores.Hamzah++; resetBall(); return; }
           ball.x = canvas.width - ball.size; ball.dx *= -1;
         }
-        if(ball.y - ball.size <=0) { ball.y = ball.size; ball.dy *= -1; }
-        if(ball.y + ball.size >= canvas.height) { ball.y = canvas.height-ball.size; ball.dy *= -1; }
-        [...players, ...keepers].forEach(o=>{
+        if (ball.y - ball.size <= 0) { ball.y = ball.size; ball.dy *= -1; }
+        if (ball.y + ball.size >= canvas.height) { ball.y = canvas.height - ball.size; ball.dy *= -1; }
+
+        [...players, ...keepers].forEach(o => {
           const ox = o.x - ball.x, oy = o.y - ball.y;
-          const r = (o.size/2)*0.8 + ball.size;
-          const d = Math.hypot(ox,oy);
-          if(d < r) {
-            const nx = -ox/d, ny = -oy/d;
+          const r = (o.size / 2) * 0.8 + ball.size;
+          const d = Math.hypot(ox, oy);
+          if (d < r) {
+            const nx = -ox / d, ny = -oy / d;
             ball.dx = nx * ball.speed;
             ball.dy = ny * ball.speed;
           }
         });
-        ball.dx *= 0.993; ball.dy *= 0.993;
-        if(ball.x < -ball.size || ball.x > canvas.width+ball.size || ball.y < -ball.size || ball.y > canvas.height+ball.size) resetBall();
+
+        ball.dx *= 0.993;
+        ball.dy *= 0.993;
       }
-      function resetBall() { ball.x = canvas.width/2; ball.y = canvas.height/2; ball.dx=0; ball.dy=0; }
+
+      function resetBall() {
+        ball.x = canvas.width / 2;
+        ball.y = canvas.height / 2;
+        ball.dx = 0;
+        ball.dy = 0;
+      }
 
       function drawField() {
-        // Dark green base
-        ctx.fillStyle='#264d26'; ctx.fillRect(0,0,canvas.width,canvas.height);
-        // Grass texture: fine strokes
-        ctx.strokeStyle='rgba(30,60,30,0.5)';
-        for(let x=0; x<canvas.width; x+=8) {
+        ctx.fillStyle = '#264d26';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.strokeStyle = 'rgba(30,60,30,0.5)';
+        for (let x = 0; x < canvas.width; x += 8) {
           ctx.beginPath();
           ctx.moveTo(x, 0);
-          ctx.lineTo(x + (Math.random()*2-1)*5, canvas.height);
+          ctx.lineTo(x + (Math.random() * 2 - 1) * 5, canvas.height);
           ctx.stroke();
         }
-        // Goals & net
-        ctx.fillStyle='white';
-        ctx.fillRect(10, canvas.height/3-20,20,canvas.height/3+40);
-        ctx.fillRect(canvas.width-30, canvas.height/3-20,20,canvas.height/3+40);
-        ctx.strokeStyle='#ccc'; ctx.lineWidth=1;
-        for(let y=canvas.height/3-20; y<=2*canvas.height/3+20; y+=8) {
-          ctx.beginPath(); ctx.moveTo(10,y); ctx.lineTo(30,y+10); ctx.stroke();
-          ctx.beginPath(); ctx.moveTo(30,y); ctx.lineTo(10,y+10); ctx.stroke();
+
+        ctx.fillStyle = 'white';
+        ctx.fillRect(10, canvas.height / 3 - 20, 20, canvas.height / 3 + 40);
+        ctx.fillRect(canvas.width - 30, canvas.height / 3 - 20, 20, canvas.height / 3 + 40);
+
+        ctx.strokeStyle = '#ccc';
+        ctx.lineWidth = 1;
+        for (let y = canvas.height / 3 - 20; y <= 2 * canvas.height / 3 + 20; y += 8) {
+          ctx.beginPath(); ctx.moveTo(10, y); ctx.lineTo(30, y + 10); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(30, y); ctx.lineTo(10, y + 10); ctx.stroke();
         }
-        // Crowd avatars
-        const avatarColors = keeperColors;
-        const colsC = Math.ceil(canvas.width/20), rowsC=6;
-        for(let r=0;r<rowsC;r++) for(let c=0;c<colsC;c++) {
-          const cx=c*20+10, cy=canvas.height-(rowsC-r)*20;
-          const color=avatarColors[(r+c)%avatarColors.length];
-          ctx.fillStyle=color; ctx.beginPath(); ctx.arc(cx,cy-5,6,0,2*Math.PI); ctx.fill();
-          ctx.fillRect(cx-6,cy+1,12,12);
+
+        const colsC = Math.ceil(canvas.width / 20), rowsC = 6;
+        for (let r = 0; r < rowsC; r++) {
+          for (let c = 0; c < colsC; c++) {
+            const cx = c * 20 + 10, cy = canvas.height - (rowsC - r) * 20;
+            const color = keeperColors[(r + c) % keeperColors.length];
+            ctx.fillStyle = color;
+            ctx.beginPath(); ctx.arc(cx, cy - 5, 6, 0, 2 * Math.PI); ctx.fill();
+            ctx.fillRect(cx - 6, cy + 1, 12, 12);
+          }
         }
       }
+
       function drawPlayers() {
-        players.forEach(p=>{
-          const hr=p.size*0.2, hx=p.x, hy=p.y-hr*2;
-          ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(hx,hy,hr,0,2*Math.PI); ctx.fill();
-          ctx.strokeStyle=p.color; ctx.lineWidth=3;
-          ctx.beginPath(); ctx.moveTo(p.x,hy+hr); ctx.lineTo(p.x,p.y+hr); ctx.stroke();
-          ctx.beginPath(); ctx.moveTo(p.x,p.y-hr); ctx.lineTo(p.x-hr,p.y);
-          ctx.moveTo(p.x,p.y-hr); ctx.lineTo(p.x+hr,p.y);
-          ctx.moveTo(p.x,p.y+hr); ctx.lineTo(p.x-hr,p.y+hr*3);
-          ctx.moveTo(p.x,p.y+hr); ctx.lineTo(p.x+hr,p.y+hr*3);
+        players.forEach(p => {
+          const hr = p.size * 0.2;
+          const hx = p.x, hy = p.y - hr * 2;
+          ctx.fillStyle = p.color;
+          ctx.beginPath(); ctx.arc(hx, hy, hr, 0, 2 * Math.PI); ctx.fill();
+
+          ctx.strokeStyle = p.color;
+          ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.moveTo(p.x, hy + hr); ctx.lineTo(p.x, p.y + hr); ctx.stroke();
+
+          ctx.beginPath(); ctx.moveTo(p.x, p.y - hr); ctx.lineTo(p.x - hr, p.y);
+          ctx.moveTo(p.x, p.y - hr); ctx.lineTo(p.x + hr, p.y);
+          ctx.moveTo(p.x, p.y + hr); ctx.lineTo(p.x - hr, p.y + hr * 3);
+          ctx.moveTo(p.x, p.y + hr); ctx.lineTo(p.x + hr, p.y + hr * 3);
           ctx.stroke();
-          ctx.fillStyle='white'; ctx.font='18px Arial'; ctx.textAlign='center'; ctx.fillText(p.name,p.x,hy-hr-5);
         });
       }
-      function drawKeepers() {
-        keepers.forEach((g,i)=>{
-          const cols = g.colors;
-          const head = cols[(i*2)%cols.length];
-          const body= cols[(i*2+1)%cols.length];
-          const x=g.x, y=g.y;
-          ctx.fillStyle=head; ctx.beginPath(); ctx.arc(x,y-g.size*0.4,g.size*0.2,0,2*Math.PI); ctx.fill();
-          ctx.fillStyle=body; ctx.fillRect(x-g.size*0.2,y-g.size*0.2,g.size*0.4,g.size*0.6);
-          ctx.fillStyle='#fff'; ctx.fillRect(x-g.size*0.3,y+g.size*0.1,g.size*0.2,g.size*0.1);
-          ctx.fillRect(x+g.size*0.1,y+g.size*0.1,g.size*0.2,g.size*0.1);
-          ctx.fillStyle='#333'; ctx.fillRect(x-g.size*0.2,y+g.size*0.5,g.size*0.4,g.size*0.1);
-        });
-      }
+
       function drawBall() {
-        ctx.beginPath(); ctx.arc(ball.x,ball.y,ball.size,0,2*Math.PI);
-        const grad=ctx.createRadialGradient(ball.x,ball.y,ball.size*0.2,ball.x,ball.y,ball.size);
-        grad.addColorStop(0,'#fff'); grad.addColorStop(1,'#ccc'); ctx.fillStyle=grad; ctx.fill();
-        const pr=ball.size*0.3;
-        for(let i=0;i<5;i++){ const ang=i*2*Math.PI/5-Math.PI/2;
-          const px=ball.x+Math.cos(ang)*ball.size*0.5;
-          const py=ball.y+Math.sin(ang)*ball.size*0.5;
-          ctx.beginPath(); for(let j=0;j<5;j++){ const a=ang+j*2*Math.PI/5; ctx.lineTo(px+Math.cos(a)*pr,py+Math.sin(a)*pr);} ctx.closePath(); ctx.fillStyle='black'; ctx.fill();
+        ctx.fillStyle = "#fff";
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, ball.size, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+
+      function updateTimer() {
+        const now = Date.now();
+        const delta = now - lastTime;
+        if (!paused) gameTime += delta;
+        timerDisplay.innerText = "Time: " + Math.floor(gameTime / 1000);
+        lastTime = now;
+      }
+
+      function gameLoop() {
+        if (!paused) {
+          updateTimer();
+          updatePlayers();
+          updateKeepers();
+          updateBall();
         }
+
+        drawField();
+        drawPlayers();
+        drawBall();
+
+        requestAnimationFrame(gameLoop);
       }
-      function drawScore() {
-        ctx.fillStyle='white'; ctx.font='24px Arial'; ctx.textAlign='center';
-        ctx.fillText(`${players[0].name}: ${scores[players[0].name]} - ${players[1].name}: ${scores[players[1].name]}`, canvas.width/2,40);
-      }
-      function loop() { drawField(); updatePlayers(); updateKeepers(); updateBall(); drawPlayers(); drawKeepers(); drawBall(); drawScore(); requestAnimationFrame(loop); }
-      loop();
+
+      gameLoop();
     })();
   </script>
 </body>
